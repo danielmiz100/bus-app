@@ -1,0 +1,116 @@
+<script>
+const API_KEY = "h2kQJcW1liXq6pSOQpLn";
+
+// Destination logic
+const DEST_FILTERS = {
+  lougheed: {
+    keywords: ["lougheed"],
+    directions: ["W"]
+  },
+  burquitlam: {
+    keywords: ["burquitlam"],
+    directions: ["W", "N"]
+  },
+  regent: {
+    keywords: ["coquitlam", "regent"],
+    directions: ["E"] // eastbound only
+  }
+};
+
+// Fixed stop for Regent
+const FIXED_STOPS = {
+  regent: "52813"
+};
+
+let refreshInterval = null;
+
+function start(destinationKey) {
+  clearInterval(refreshInterval);
+  document.getElementById("results").innerHTML = "Loading...";
+
+  // If fixed stop exists, skip GPS
+  if (FIXED_STOPS[destinationKey]) {
+    fetchBuses(FIXED_STOPS[destinationKey], destinationKey);
+    refreshInterval = setInterval(() => {
+      fetchBuses(FIXED_STOPS[destinationKey], destinationKey);
+    }, 20000);
+    return;
+  }
+
+  // Otherwise use GPS
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+
+      findNearestStop(lat, lon, destinationKey);
+
+      refreshInterval = setInterval(() => {
+        findNearestStop(lat, lon, destinationKey);
+      }, 20000);
+    },
+    () => alert("Location permission required")
+  );
+}
+
+function findNearestStop(lat, lon, destinationKey) {
+  const url = `https://api.translink.ca/rttiapi/v1/stops?apikey=${API_KEY}&lat=${lat}&long=${lon}&radius=500`;
+
+  fetch(url)
+    .then(res => res.text())
+    .then(str => (new window.DOMParser()).parseFromString(str, "text/xml"))
+    .then(data => {
+      const stops = data.getElementsByTagName("Stop");
+
+      if (stops.length === 0) {
+        document.getElementById("results").innerHTML = "No nearby stops.";
+        return;
+      }
+
+      // Just take closest for now (direction handled later)
+      const stopId = stops[0].getElementsByTagName("StopNo")[0].textContent;
+
+      fetchBuses(stopId, destinationKey);
+    });
+}
+
+function fetchBuses(stopId, destinationKey) {
+  const url = `https://api.translink.ca/rttiapi/v1/stops/${stopId}/estimates?apikey=${API_KEY}&count=10&timeframe=60`;
+
+  fetch(url)
+    .then(res => res.text())
+    .then(str => (new window.DOMParser()).parseFromString(str, "text/xml"))
+    .then(data => {
+      const buses = data.getElementsByTagName("NextBus");
+      const filter = DEST_FILTERS[destinationKey];
+
+      let results = [];
+
+      for (let bus of buses) {
+        const route = bus.getElementsByTagName("RouteNo")[0].textContent;
+        const dest = bus.getElementsByTagName("Destination")[0].textContent.toLowerCase();
+        const mins = parseInt(bus.getElementsByTagName("ExpectedCountdown")[0].textContent);
+        const direction = bus.getElementsByTagName("Direction")[0]?.textContent || "";
+
+        const keywordMatch = filter.keywords.some(k => dest.includes(k));
+        const directionMatch = filter.directions.includes(direction);
+
+        if (keywordMatch && directionMatch) {
+          results.push({ route, dest, mins });
+        }
+      }
+
+      results.sort((a, b) => a.mins - b.mins);
+
+      let output = results.map(b =>
+        `<div class="bus">
+          ?? ${b.route} ? ${b.dest}<br>
+          <strong>${b.mins} min</strong>
+        </div>`
+      ).join("");
+
+      document.getElementById("results").innerHTML =
+        output || "No matching buses.";
+    });
+}
+</script>
