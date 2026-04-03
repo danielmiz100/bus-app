@@ -131,7 +131,7 @@ function findNearestStop(lat, lon, destinationKey) {
 function fetchBuses(stopId, destinationKey) {
   document.getElementById("results").innerHTML = "Loading buses...";
 
-  const url = `https://translink-proxy.onrender.com/stops/${stopId}?apikey=${API_KEY}`;
+  const url = `https://api.tlmobilitools.com/nextbus/${stopId}`;
 
   fetch(url)
     .then(res => res.json())
@@ -141,10 +141,10 @@ function fetchBuses(stopId, destinationKey) {
       let results = [];
 
       for (let bus of data) {
-        const route = bus.RouteNo;
-        const dest = bus.Destination.toLowerCase();
-        const mins = parseInt(bus.ExpectedCountdown);
-        const direction = bus.Direction || "";
+        const route = bus.route;
+        const dest = bus.destination.toLowerCase();
+        const mins = parseInt(bus.countdown);
+        const direction = bus.direction || "";
 
         const keywordMatch = filter.keywords.length === 0
           ? true
