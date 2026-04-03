@@ -55,7 +55,7 @@ function start(destinationKey) {
 
 function findNearestStop(lat, lon, destinationKey) {
   const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(
-  `https://api.translink.ca/rttiapi/v1/stops/${stopId}/estimates?apikey=${API_KEY}&count=10&timeframe=60`
+  `https://api.translink.ca/rttiapi/v1/stops?apikey=${API_KEY}&lat=${lat}&long=${lon}&radius=500`
   )}`;
 
   fetch(url)
@@ -78,7 +78,7 @@ function findNearestStop(lat, lon, destinationKey) {
 
 function fetchBuses(stopId, destinationKey) {
   const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(
-  `https://api.translink.ca/rttiapi/v1/stops/${stopId}/estimates?apikey=${API_KEY}&count=10&timeframe=60`
+  `https://api.translink.ca/rttiapi/v1/stops?apikey=${API_KEY}&lat=${lat}&long=${lon}&radius=500`
   )}`;
 
   fetch(url)
