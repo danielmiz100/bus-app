@@ -131,30 +131,20 @@ function findNearestStop(lat, lon, destinationKey) {
 function fetchBuses(stopId, destinationKey) {
   document.getElementById("results").innerHTML = "Loading buses...";
 
-  const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(
-    `https://api.translink.ca/rttiapi/v1/stops/${stopId}/estimates?apikey=${API_KEY}&count=10&timeframe=60`
-  )}`;
+  const url = `https://translink-proxy.onrender.com/stops/${stopId}?apikey=${API_KEY}`;
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5000);
-
-  fetch(url, { signal: controller.signal })
-    .then(res => res.text())
-    .then(str => {
-      clearTimeout(timeout);
-      return (new window.DOMParser()).parseFromString(str, "text/xml");
-    })
+  fetch(url)
+    .then(res => res.json())
     .then(data => {
-      const buses = data.getElementsByTagName("NextBus");
       const filter = DEST_FILTERS[destinationKey];
 
       let results = [];
 
-      for (let bus of buses) {
-        const route = bus.getElementsByTagName("RouteNo")[0].textContent;
-        const dest = bus.getElementsByTagName("Destination")[0].textContent.toLowerCase();
-        const mins = parseInt(bus.getElementsByTagName("ExpectedCountdown")[0].textContent);
-        const direction = bus.getElementsByTagName("Direction")[0]?.textContent || "";
+      for (let bus of data) {
+        const route = bus.RouteNo;
+        const dest = bus.Destination.toLowerCase();
+        const mins = parseInt(bus.ExpectedCountdown);
+        const direction = bus.Direction || "";
 
         const keywordMatch = filter.keywords.length === 0
           ? true
