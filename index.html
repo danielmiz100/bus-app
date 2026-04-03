@@ -93,57 +93,32 @@ function start(destinationKey) {
 
 // Side-of-street biased stop selection
 function findNearestStop(lat, lon, destinationKey) {
-  const url = `https://corsproxy.io/?${encodeURIComponent(
-    `https://api.translink.ca/rttiapi/v1/stops?apikey=${API_KEY}&lat=${lat}&long=${lon}&radius=1000`
-  )}`;
+  const dest = DEST_COORDS[destinationKey];
 
-  fetch(url)
-    .then(res => res.text())
-    .then(str => (new window.DOMParser()).parseFromString(str, "text/xml"))
-    .then(data => {
-      const stops = data.getElementsByTagName("Stop");
+  let bestStopId = null;
+  let bestScore = Infinity;
 
-      if (stops.length === 0) {
-        document.getElementById("results").innerHTML = "No nearby stops found.";
-        return;
-      }
+  for (let stop of KNOWN_STOPS) {
+    const dist = distance(lat, lon, stop.lat, stop.lon);
 
-      const dest = DEST_COORDS[destinationKey];
+    const dirScore = directionScore(lat, lon, stop.lat, stop.lon, dest.lat, dest.lon);
 
-      let bestStopId = null;
-      let bestScore = Infinity;
+    const sidePenalty = dirScore < 0 ? 0.1 : 0;
 
-      for (let stop of stops) {
-        const stopLat = parseFloat(stop.getElementsByTagName("Latitude")[0].textContent);
-        const stopLon = parseFloat(stop.getElementsByTagName("Longitude")[0].textContent);
-        const stopId = stop.getElementsByTagName("StopNo")[0].textContent;
+    const score = dist + sidePenalty;
 
-        const dist = distance(lat, lon, stopLat, stopLon);
+    if (score < bestScore) {
+      bestScore = score;
+      bestStopId = stop.id;
+    }
+  }
 
-        // Direction alignment (dot product)
-        const dirScore = directionScore(lat, lon, stopLat, stopLon, dest.lat, dest.lon);
+  if (!bestStopId) {
+    document.getElementById("results").innerHTML = "No stops available.";
+    return;
+  }
 
-        // Stronger penalty (Option A)
-        const sidePenalty = dirScore < 0 ? 0.1 : 0;
-
-        const score = dist + sidePenalty;
-
-        if (score < bestScore) {
-          bestScore = score;
-          bestStopId = stopId;
-        }
-      }
-
-      if (!bestStopId) {
-        document.getElementById("results").innerHTML = "No valid stops found.";
-        return;
-      }
-
-      fetchBuses(bestStopId, destinationKey);
-    })
-    .catch(() => {
-      document.getElementById("results").innerHTML = "Error finding stops.";
-    });
+  fetchBuses(bestStopId, destinationKey);
 }
 
 // Fetch and filter buses
