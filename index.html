@@ -31,7 +31,7 @@
 <script>
 const API_KEY = "h2kQJcW1liXq6pSOQpLn";
 
-// Destination keyword + direction filters
+// Destination filters
 const DEST_FILTERS = {
   lougheed: {
     keywords: ["lougheed"],
@@ -42,17 +42,25 @@ const DEST_FILTERS = {
     directions: ["W", "N"]
   },
   regent: {
-    keywords: ["coquitlam", "regent"],
+    keywords: [], // no keyword filtering
     directions: ["E"]
   }
 };
 
-// Fixed stop for Regent
+// Fixed stop (Regent)
 const FIXED_STOPS = {
   regent: "52813"
 };
 
-// Destination coordinates (for stop direction bias)
+// Known stops (fallback system)
+const KNOWN_STOPS = [
+  { id: "52813", lat: 49.2663, lon: -122.8568 },
+  { id: "52814", lat: 49.2663, lon: -122.8578 },
+  { id: "52035", lat: 49.2620, lon: -122.8890 },
+  { id: "51861", lat: 49.2485, lon: -122.8970 }
+];
+
+// Destination coordinates
 const DEST_COORDS = {
   lougheed: { lat: 49.2485, lon: -122.8970 },
   burquitlam: { lat: 49.2625, lon: -122.8893 }
@@ -64,7 +72,6 @@ function start(destinationKey) {
   clearInterval(refreshInterval);
   document.getElementById("results").innerHTML = "Loading...";
 
-  // Fixed stop case (Regent)
   if (FIXED_STOPS[destinationKey]) {
     fetchBuses(FIXED_STOPS[destinationKey], destinationKey);
     refreshInterval = setInterval(() => {
@@ -73,7 +80,6 @@ function start(destinationKey) {
     return;
   }
 
-  // GPS-based
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       const lat = pos.coords.latitude;
@@ -91,7 +97,7 @@ function start(destinationKey) {
   );
 }
 
-// Side-of-street biased stop selection
+// Known-stop selection with side bias
 function findNearestStop(lat, lon, destinationKey) {
   const dest = DEST_COORDS[destinationKey];
 
@@ -121,7 +127,7 @@ function findNearestStop(lat, lon, destinationKey) {
   fetchBuses(bestStopId, destinationKey);
 }
 
-// Fetch and filter buses
+// Fetch buses (stable version)
 function fetchBuses(stopId, destinationKey) {
   document.getElementById("results").innerHTML = "Loading buses...";
 
@@ -129,7 +135,6 @@ function fetchBuses(stopId, destinationKey) {
     `https://api.translink.ca/rttiapi/v1/stops/${stopId}/estimates?apikey=${API_KEY}&count=10&timeframe=60`
   )}`;
 
-  // Timeout safety (5 seconds)
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 5000);
 
@@ -151,7 +156,10 @@ function fetchBuses(stopId, destinationKey) {
         const mins = parseInt(bus.getElementsByTagName("ExpectedCountdown")[0].textContent);
         const direction = bus.getElementsByTagName("Direction")[0]?.textContent || "";
 
-        const keywordMatch = filter.keywords.some(k => dest.includes(k));
+        const keywordMatch = filter.keywords.length === 0
+          ? true
+          : filter.keywords.some(k => dest.includes(k));
+
         const directionMatch = filter.directions.includes(direction);
 
         if (keywordMatch && directionMatch) {
@@ -171,14 +179,13 @@ function fetchBuses(stopId, destinationKey) {
       document.getElementById("results").innerHTML =
         output || "No matching buses.";
     })
-    .catch((err) => {
+    .catch(() => {
       document.getElementById("results").innerHTML =
-        "Error loading buses. (network issue)";
-      console.error(err);
+        "Error loading buses.";
     });
 }
 
-// Distance helper
+// Helpers
 function distance(lat1, lon1, lat2, lon2) {
   return Math.sqrt(
     Math.pow(lat1 - lat2, 2) +
@@ -186,7 +193,6 @@ function distance(lat1, lon1, lat2, lon2) {
   );
 }
 
-// Direction alignment helper
 function directionScore(userLat, userLon, stopLat, stopLon, destLat, destLon) {
   const toStopX = stopLat - userLat;
   const toStopY = stopLon - userLon;
