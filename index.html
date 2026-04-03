@@ -131,7 +131,7 @@ function findNearestStop(lat, lon, destinationKey) {
 function fetchBuses(stopId, destinationKey) {
   document.getElementById("results").innerHTML = "Loading buses...";
 
-  const url = `https://api.tlmobilitools.com/nextbus/${stopId}`;
+  const url = `https://ancient-cake-0bdd.danielmiz.workers.dev/${stopId}`;
 
   fetch(url)
     .then(res => res.json())
