@@ -31,7 +31,7 @@
 <script>
 const API_KEY = "h2kQJcW1liXq6pSOQpLn";
 
-// Destination filters
+// Destination keyword + direction filters
 const DEST_FILTERS = {
   lougheed: {
     keywords: ["lougheed"],
@@ -47,9 +47,15 @@ const DEST_FILTERS = {
   }
 };
 
-// Fixed stop for Regent
+// Fixed stop for Regent (eastbound)
 const FIXED_STOPS = {
   regent: "52813"
+};
+
+// Destination coordinates (for direction filtering of stops)
+const DEST_COORDS = {
+  lougheed: { lat: 49.2485, lon: -122.8970 },
+  burquitlam: { lat: 49.2625, lon: -122.8893 }
 };
 
 let refreshInterval = null;
@@ -58,7 +64,7 @@ function start(destinationKey) {
   clearInterval(refreshInterval);
   document.getElementById("results").innerHTML = "Loading...";
 
-  // Use fixed stop if defined
+  // Use fixed stop (Regent)
   if (FIXED_STOPS[destinationKey]) {
     fetchBuses(FIXED_STOPS[destinationKey], destinationKey);
     refreshInterval = setInterval(() => {
@@ -85,9 +91,10 @@ function start(destinationKey) {
   );
 }
 
+// Direction-aware stop selection
 function findNearestStop(lat, lon, destinationKey) {
   const url = `https://corsproxy.io/?${encodeURIComponent(
-    `https://api.translink.ca/rttiapi/v1/stops?apikey=${API_KEY}&lat=${lat}&long=${lon}&radius=500`
+    `https://api.translink.ca/rttiapi/v1/stops?apikey=${API_KEY}&lat=${lat}&long=${lon}&radius=1000`
   )}`;
 
   fetch(url)
@@ -101,14 +108,45 @@ function findNearestStop(lat, lon, destinationKey) {
         return;
       }
 
-      const stopId = stops[0].getElementsByTagName("StopNo")[0].textContent;
-      fetchBuses(stopId, destinationKey);
+      const dest = DEST_COORDS[destinationKey];
+
+      let bestStopId = null;
+      let bestScore = Infinity;
+
+      for (let stop of stops) {
+        const stopLat = parseFloat(stop.getElementsByTagName("Latitude")[0].textContent);
+        const stopLon = parseFloat(stop.getElementsByTagName("Longitude")[0].textContent);
+        const stopId = stop.getElementsByTagName("StopNo")[0].textContent;
+
+        const userToStop = distance(lat, lon, stopLat, stopLon);
+        const stopToDest = distance(stopLat, stopLon, dest.lat, dest.lon);
+        const userToDest = distance(lat, lon, dest.lat, dest.lon);
+
+        // Reject stops going wrong direction
+        const isWrongDirection = (userToStop + stopToDest) > (userToDest * 1.2);
+        if (isWrongDirection) continue;
+
+        const score = userToStop;
+
+        if (score < bestScore) {
+          bestScore = score;
+          bestStopId = stopId;
+        }
+      }
+
+      if (!bestStopId) {
+        document.getElementById("results").innerHTML = "No valid stops in correct direction.";
+        return;
+      }
+
+      fetchBuses(bestStopId, destinationKey);
     })
     .catch(() => {
       document.getElementById("results").innerHTML = "Error finding stops.";
     });
 }
 
+// Fetch and filter buses
 function fetchBuses(stopId, destinationKey) {
   const url = `https://corsproxy.io/?${encodeURIComponent(
     `https://api.translink.ca/rttiapi/v1/stops/${stopId}/estimates?apikey=${API_KEY}&count=10&timeframe=60`
@@ -152,6 +190,14 @@ function fetchBuses(stopId, destinationKey) {
     .catch(() => {
       document.getElementById("results").innerHTML = "Error loading buses.";
     });
+}
+
+// Distance helper
+function distance(lat1, lon1, lat2, lon2) {
+  return Math.sqrt(
+    Math.pow(lat1 - lat2, 2) +
+    Math.pow(lon1 - lon2, 2)
+  );
 }
 </script>
 
