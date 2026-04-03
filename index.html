@@ -1,7 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bus Finder</title>
+  <style>
+    body { font-family: -apple-system; text-align: center; padding: 20px; }
+    button {
+      font-size: 18px;
+      padding: 15px;
+      margin: 10px;
+      width: 90%;
+    }
+    .bus {
+      margin-top: 15px;
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Bus Finder</h2>
+
+<button onclick="start('lougheed')">Lougheed Mall Bus Station</button>
+<button onclick="start('burquitlam')">Burquitlam Station</button>
+<button onclick="start('regent')">842 Regent St (Eastbound)</button>
+
+<div id="results">Select a destination</div>
+
 <script>
 const API_KEY = "h2kQJcW1liXq6pSOQpLn";
 
-// Destination logic
+// Destination filters
 const DEST_FILTERS = {
   lougheed: {
     keywords: ["lougheed"],
@@ -13,7 +43,7 @@ const DEST_FILTERS = {
   },
   regent: {
     keywords: ["coquitlam", "regent"],
-    directions: ["E"] // eastbound only
+    directions: ["E"]
   }
 };
 
@@ -28,7 +58,7 @@ function start(destinationKey) {
   clearInterval(refreshInterval);
   document.getElementById("results").innerHTML = "Loading...";
 
-  // If fixed stop exists, skip GPS
+  // Use fixed stop if defined
   if (FIXED_STOPS[destinationKey]) {
     fetchBuses(FIXED_STOPS[destinationKey], destinationKey);
     refreshInterval = setInterval(() => {
@@ -49,13 +79,15 @@ function start(destinationKey) {
         findNearestStop(lat, lon, destinationKey);
       }, 20000);
     },
-    () => alert("Location permission required")
+    () => {
+      document.getElementById("results").innerHTML = "Location permission required.";
+    }
   );
 }
 
 function findNearestStop(lat, lon, destinationKey) {
-  const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(
-  `https://api.translink.ca/rttiapi/v1/stops?apikey=${API_KEY}&lat=${lat}&long=${lon}&radius=500`
+  const url = `https://corsproxy.io/?${encodeURIComponent(
+    `https://api.translink.ca/rttiapi/v1/stops?apikey=${API_KEY}&lat=${lat}&long=${lon}&radius=500`
   )}`;
 
   fetch(url)
@@ -65,20 +97,21 @@ function findNearestStop(lat, lon, destinationKey) {
       const stops = data.getElementsByTagName("Stop");
 
       if (stops.length === 0) {
-        document.getElementById("results").innerHTML = "No nearby stops.";
+        document.getElementById("results").innerHTML = "No nearby stops found.";
         return;
       }
 
-      // Just take closest for now (direction handled later)
       const stopId = stops[0].getElementsByTagName("StopNo")[0].textContent;
-
       fetchBuses(stopId, destinationKey);
+    })
+    .catch(() => {
+      document.getElementById("results").innerHTML = "Error finding stops.";
     });
 }
 
 function fetchBuses(stopId, destinationKey) {
-  const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(
-  `https://api.translink.ca/rttiapi/v1/stops?apikey=${API_KEY}&lat=${lat}&long=${lon}&radius=500`
+  const url = `https://corsproxy.io/?${encodeURIComponent(
+    `https://api.translink.ca/rttiapi/v1/stops/${stopId}/estimates?apikey=${API_KEY}&count=10&timeframe=60`
   )}`;
 
   fetch(url)
@@ -108,13 +141,19 @@ function fetchBuses(stopId, destinationKey) {
 
       let output = results.map(b =>
         `<div class="bus">
-          ?? ${b.route} ? ${b.dest}<br>
+          🚌 ${b.route} → ${b.dest}<br>
           <strong>${b.mins} min</strong>
         </div>`
       ).join("");
 
       document.getElementById("results").innerHTML =
         output || "No matching buses.";
+    })
+    .catch(() => {
+      document.getElementById("results").innerHTML = "Error loading buses.";
     });
 }
 </script>
+
+</body>
+</html>
