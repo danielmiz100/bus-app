@@ -123,13 +123,22 @@ function findNearestStop(lat, lon, destinationKey) {
 
 // Fetch and filter buses
 function fetchBuses(stopId, destinationKey) {
-  const url = `https://corsproxy.io/?${encodeURIComponent(
+  document.getElementById("results").innerHTML = "Loading buses...";
+
+  const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(
     `https://api.translink.ca/rttiapi/v1/stops/${stopId}/estimates?apikey=${API_KEY}&count=10&timeframe=60`
   )}`;
 
-  fetch(url)
+  // Timeout safety (5 seconds)
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+
+  fetch(url, { signal: controller.signal })
     .then(res => res.text())
-    .then(str => (new window.DOMParser()).parseFromString(str, "text/xml"))
+    .then(str => {
+      clearTimeout(timeout);
+      return (new window.DOMParser()).parseFromString(str, "text/xml");
+    })
     .then(data => {
       const buses = data.getElementsByTagName("NextBus");
       const filter = DEST_FILTERS[destinationKey];
@@ -162,8 +171,10 @@ function fetchBuses(stopId, destinationKey) {
       document.getElementById("results").innerHTML =
         output || "No matching buses.";
     })
-    .catch(() => {
-      document.getElementById("results").innerHTML = "Error loading buses.";
+    .catch((err) => {
+      document.getElementById("results").innerHTML =
+        "Error loading buses. (network issue)";
+      console.error(err);
     });
 }
 
